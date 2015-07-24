@@ -1,0 +1,154 @@
+local args = {...}
+local memory = {}
+local instPointer = 1
+local memPointer = 1
+local running = true
+
+local function incInst(i)
+	instPointer = instPointer+1
+end
+
+local function decInst(i)
+	instPointer = instPointer-1
+end
+
+local function incMemPoint(i)
+	memPointer = memPointer+(i and i or 1)
+end
+
+local function decMemPoint(i)
+	memPointer = memPointer-(i and i or 1)
+end
+
+local function incMem(i)
+	if(memory[memPointer] == nil) then memory[memPointer] = 0 end
+	memory[memPointer] = memory[memPointer]+(i and i or 1)
+end
+
+local function decMem(i)
+	if(memory[memPointer] == nil) then memory[memPointer] = 0 end
+	memory[memPointer] = memory[memPointer]-(i and i or 1)
+end
+
+local function getCurMem()
+	return memory[memPointer]
+end
+
+local function getCurInst()
+	return memory[instPointer]
+end
+
+local function wrt()
+	write(string.char(getCurMem()))
+end
+
+local opcodes = {
+	NOP = 0,
+	WRT = 1,
+	RD = 2,
+	IF = 3,
+	EIF = 4,
+	FWD = 5,
+	BAK = 6,
+	INC = 7,
+	DEC = 8,
+	CON = 9,
+	END = 10
+}
+
+local operations = {
+	[opcodes.NOP] = function() 
+		incInst() 
+	end,
+	[opcodes.WRT] = function()
+		wrt()
+		incInst()
+	end,
+	[opcodes.RD] = function()
+		incInst() --Not implemented yet
+	end,
+	[opcodes.IF] = function()
+		if(getCurMem() == 0) then
+			local found = false
+			while not found do
+				incInst()
+				if(getCurInst() == opcodes.EIF) then
+					found = true
+				end
+			end
+			incInst()
+		else
+			incInst()
+		end
+	end,
+	[opcodes.EIF] = function()
+		if(getCurMem() ~= 0) then
+			local found = false
+			while not found do
+				decInst()
+				if(getCurInst() == opcodes.IF) then
+					found = true
+				end
+			end
+			incInst()
+		else
+			incInst()
+		end
+	end,
+	[opcodes.FWD] = function()
+		incInst()
+		incMemPoint(getCurInst()+1)
+		incInst()
+	end,
+	[opcodes.BAK] = function()
+		incInst()
+		decMemPoint(getCurInst()+1)
+		incInst()
+	end,
+	[opcodes.INC] = function()
+		incInst()
+		incMem(getCurInst()+1)
+		incInst()
+	end,
+	[opcodes.DEC] = function()
+		incInst()
+		decMem(getCurInst()+1)
+		incInst()
+	end,
+	[opcodes.CON] = function()
+		--Nope
+	end,
+	[opcodes.END] = function()
+		running = false
+	end
+}
+
+local lines = {}
+local handle = fs.open(shell.resolve(args[1]),"r")
+local content = handle.readAll()
+handle.close()
+
+for line in content:gmatch("[^ \n]+") do
+	if line:sub(0,2) ~= "//" then
+		for word in line:gmatch("[^ \t]+") do
+			local i = 0
+			for ch in word:gmatch(".") do
+				if(tonumber(ch)) then
+					i = i+tonumber(ch)
+				end
+			end
+			memory[#memory+1] = i
+		end
+	end
+end
+
+memPointer = #memory+1
+memory[memPointer] = 0
+
+while running do
+	local opc = getCurInst()
+	if(opc > 10) then
+		error("F00l! teh c0d3 c4n'7 b3 0v3r t3n!!!1!",0)
+	end
+	operations[opc]()
+end
